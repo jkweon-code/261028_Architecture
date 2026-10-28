@@ -23,6 +23,7 @@ export interface Research {
   methods: string; // 연구 방법
   results: string; // 결과 요약
   links: LinkItem[]; // 관련 링크
+  image?: string; // 대표 이미지 (public/ 기준 경로). 없으면 도면풍 그림이 자동으로 표시됨
   featured?: boolean; // true 이면 홈 화면 "주요 연구 분야"에 표시
 }
 

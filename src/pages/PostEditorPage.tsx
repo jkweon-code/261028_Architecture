@@ -82,8 +82,8 @@ export default function PostEditorPage() {
 
   return (
     <>
-      <PageHeader title={isEdit ? '글 수정' : '글쓰기'} />
-      <form onSubmit={handleSubmit} className="container-page max-w-3xl space-y-5 py-8">
+      <PageHeader eyebrow="Discussion" title={isEdit ? '글 수정' : '글쓰기'} />
+      <form onSubmit={handleSubmit} className="container-page max-w-3xl space-y-6 py-10">
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <label htmlFor="category" className="label">
@@ -128,8 +128,9 @@ export default function PostEditorPage() {
           </label>
           <input
             id="title"
-            className="input"
+            className="input py-3 text-base font-medium"
             maxLength={TITLE_MAX}
+            placeholder="제목을 입력하세요"
             value={form.title}
             onChange={(e) => update('title', e.target.value)}
           />
@@ -141,7 +142,7 @@ export default function PostEditorPage() {
           </label>
           <textarea
             id="body"
-            className="input min-h-72 leading-relaxed"
+            className="input min-h-80 resize-y leading-relaxed"
             maxLength={BODY_MAX}
             value={form.body}
             onChange={(e) => update('body', e.target.value)}
@@ -153,7 +154,7 @@ export default function PostEditorPage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-neutral-200 pt-6">
           <button type="button" className="btn-secondary" onClick={() => navigate(-1)}>
             취소
           </button>

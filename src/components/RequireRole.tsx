@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from './PageHeader';
+import LockIcon from './LockIcon';
 
 /**
  * 토론 게시판 입구. 승인된 구성원(admin, member)만 안쪽 화면을 보여 주고,
@@ -25,10 +26,13 @@ export default function RequireRole() {
 
   return (
     <>
-      <PageHeader title="토론" />
+      <PageHeader eyebrow="Discussion" title="토론" />
       <div className="container-page py-16">
-        <div className="mx-auto max-w-md rounded-lg border border-neutral-200 p-8 text-center">
-          <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+        <div className="mx-auto max-w-md rounded-xl border border-neutral-200 p-10 text-center">
+          <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+            <LockIcon />
+          </span>
+          <h2 className="text-lg font-bold text-neutral-900">{title}</h2>
           <p className="mt-3 text-sm leading-relaxed text-neutral-600">{message}</p>
         </div>
       </div>
