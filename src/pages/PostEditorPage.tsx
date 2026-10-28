@@ -8,7 +8,7 @@ import { discussionService } from '../services/discussionService';
 import type { PostInput } from '../types';
 import NotFoundPage from './NotFoundPage';
 
-// 입력 길이 제한 (2단계 firestore.rules 에서도 같은 값으로 검사할 예정)
+// 입력 길이 제한 (firestore.rules 에서도 같은 값으로 검사함. 바꾸면 양쪽 모두 수정)
 const TITLE_MAX = 100;
 const BODY_MAX = 10000;
 

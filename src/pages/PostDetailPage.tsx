@@ -26,7 +26,7 @@ export default function PostDetailPage() {
     };
   }, [id]);
 
-  // 댓글은 실시간 구독 (2단계에서 Firestore onSnapshot)
+  // 댓글은 실시간 구독 (Firestore onSnapshot)
   useEffect(() => discussionService.subscribeComments(id, setComments), [id]);
 
   if (post === undefined) return <p className="container-page py-16 text-sm text-neutral-500">불러오는 중…</p>;

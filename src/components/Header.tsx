@@ -15,6 +15,9 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
+  const { user } = useAuth();
+  // 교수(admin)에게만 "관리" 메뉴 표시
+  const items = user?.role === 'admin' ? [...navItems, { to: '/admin', label: '관리' }] : navItems;
 
   // 모바일 메뉴에서 페이지를 고르면 메뉴 닫기
   useEffect(() => setOpen(false), [pathname]);
@@ -42,7 +45,7 @@ export default function Header() {
 
         {/* 데스크톱 메뉴 */}
         <nav className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -79,7 +82,7 @@ export default function Header() {
       {open && (
         <nav className="border-t border-neutral-100 bg-white md:hidden">
           <div className="container-page flex flex-col py-3">
-            {navItems.map((item, i) => (
+            {items.map((item, i) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -115,7 +118,10 @@ function Logo() {
 
 /** 로그인 버튼 또는 로그인한 사용자 표시 */
 function AuthButton() {
-  const { user, signInAvailable, signIn, signOut } = useAuth();
+  const { user, loading, signInAvailable, signIn, signOut } = useAuth();
+
+  // 로그인 상태 확인 중에는 자리만 차지
+  if (loading) return <span className="inline-block h-8 w-28 animate-pulse rounded-full bg-neutral-100" />;
 
   if (user) {
     return (
@@ -132,16 +138,16 @@ function AuthButton() {
     );
   }
 
-  // TODO(Phase2): signInAvailable 이 true 가 되면 버튼이 활성화됩니다.
+  // Firebase 설정값이 없으면 버튼이 비활성화됩니다.
   return (
-    <span className="group relative inline-block" title={signInAvailable ? undefined : '준비 중'}>
+    <span className="group relative inline-block" title={signInAvailable ? undefined : 'Firebase 설정 필요'}>
       <button type="button" className="btn-secondary px-4 py-2" disabled={!signInAvailable} onClick={signIn}>
         <GoogleMark />
         Google 로그인
       </button>
       {!signInAvailable && (
         <span className="pointer-events-none absolute top-full left-1/2 z-10 mt-2 -translate-x-1/2 rounded-md bg-neutral-900 px-2.5 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100">
-          준비 중
+          Firebase 설정 필요
         </span>
       )}
     </span>

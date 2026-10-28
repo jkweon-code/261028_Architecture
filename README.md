@@ -2,8 +2,9 @@
 
 연구·수업 자료를 정리해 보여 주고, 대학원생과 연구 결과를 토론하는 연구실 웹사이트입니다.
 
-- **1단계(현재)**: 사이트 화면 전체 + Netlify 배포. 토론 게시판은 **브라우저에만 저장**되는 임시 방식입니다.
-- **2단계(예정)**: Firebase(Google 로그인, Firestore)를 연결해 토론 글을 구성원끼리 공유합니다.
+- 연구·수업·성과·구성원: `src/data/` 파일로 관리하며 누구나 볼 수 있습니다.
+- 토론 게시판: **Google 로그인 + 교수 승인**을 받은 구성원만 이용합니다. 글과 댓글은 Firebase(Cloud Firestore)에 저장됩니다.
+- 배포: GitHub(Private) → Netlify 자동 배포. Firebase는 **Spark(무료) 요금제**의 Authentication과 Firestore만 사용합니다.
 
 ---
 
@@ -37,13 +38,9 @@ npm run build
 ```
 ↑ 실제 배포용 파일을 `dist/` 폴더에 만듭니다. 오류 없이 끝나는지 확인할 때 씁니다 (Netlify가 배포할 때 자동으로 실행하는 명령과 같습니다).
 
-### 개발용 사용자 전환 (1단계 전용)
-`npm run dev`로 띄운 화면 **오른쪽 아래의 노란 `DEV` 버튼**으로 교수(admin) · 구성원(member) · 승인 대기(pending) · 비로그인 상태를 바꿔 가며 화면을 확인할 수 있습니다.
-이 버튼은 **배포된 사이트에는 나타나지 않습니다.**
-
-> ℹ️ 1단계에서는 실제 로그인이 없으므로, **배포된 사이트에서는 토론 게시판에 "로그인 준비 중" 안내만 보입니다.** 토론 기능은 `npm run dev`에서 확인하세요.
-> 또한 1단계 토론 글은 각자의 브라우저에만 저장되어 다른 사람에게 보이지 않습니다. 2단계에서 Firestore로 바뀌면 공유됩니다.
-> 저장된 토론 데이터를 처음 상태로 되돌리려면 브라우저 개발자 도구(F12) → Application → Local Storage에서 `archlab.`으로 시작하는 항목을 지우세요.
+### 내 컴퓨터에서 로그인·토론까지 확인하려면
+프로젝트 폴더에 `.env` 파일이 있어야 합니다. `.env.example`을 복사해 `.env`로 이름을 바꾸고, 아래 **7-2**에서 받은 Firebase 설정값을 채운 뒤 `npm run dev`를 다시 실행하세요.
+`.env`가 없으면 로그인 버튼이 비활성화되고, 토론을 뺀 나머지 페이지만 동작합니다.
 
 ---
 
@@ -100,7 +97,7 @@ git add .
 ↑ 올릴 파일을 모두 담습니다. `.gitignore`에 적힌 `node_modules`, `dist`, `.env`는 자동으로 빠집니다.
 
 ```bash
-git commit -m "연구실 웹사이트 1단계"
+git commit -m "연구실 웹사이트 첫 업로드"
 ```
 ↑ 담은 파일을 하나의 기록(커밋)으로 저장합니다.
 
@@ -143,7 +140,7 @@ git push
    - Branch to deploy: `main`
    - Build command: `npm run build`
    - Publish directory: `dist`
-5. 1단계에서는 환경변수를 넣지 않아도 됩니다. **Deploy**를 누릅니다.
+5. **Deploy**를 누릅니다. (Firebase 환경변수는 7-6에서 넣습니다. 넣기 전에도 토론을 뺀 페이지는 정상 동작합니다)
 6. 1~2분 뒤 `https://임의이름.netlify.app` 주소가 생깁니다.
 7. 주소 이름 바꾸기: Project configuration → General → **Change project name**에서 원하는 이름(예: `archlab-xxx`)으로 바꿉니다.
    학교 도메인 등 개인 도메인은 Domain management에서 연결할 수 있습니다.
@@ -161,15 +158,115 @@ public/            누구나 접근 가능한 정적 파일 (_redirects, files/)
 src/config/        사이트 설정 (site.ts)
 src/types/         데이터 모양(타입) 정의
 src/data/          연구·수업·성과·구성원 데이터 ← 주로 여기를 고칩니다
-src/services/      토론 데이터 접근 (1단계: localStorage, 2단계: Firestore)
+src/services/      토론·사용자 데이터 접근 (Firestore)
 src/context/       로그인 상태와 역할 (AuthContext)
 src/components/    헤더, 푸터 등 공통 화면 조각
 src/pages/         페이지별 화면
-src/lib/           날짜 표시 등 작은 도구
+src/lib/           Firebase 초기화(firebase.ts), 날짜 표시 등
+firestore.rules    Firestore 보안 규칙 (콘솔에 붙여 넣어 게시)
 ```
 
-2단계에서 바뀔 곳에는 코드에 `// TODO(Phase2):` 주석이 달려 있습니다.
 
 ## 6. 환경변수
 
-`.env.example`에 2단계에서 쓸 Firebase 설정값 이름만 적혀 있습니다. 실제 값은 `.env` 파일(로컬)과 Netlify 환경변수에만 넣고, `.env`는 GitHub에 올라가지 않습니다.
+`.env.example`에 Firebase 설정값 이름이 적혀 있습니다. 실제 값은 `.env` 파일(내 컴퓨터)과 Netlify 환경변수(7-6)에만 넣으며, `.env`는 GitHub에 올라가지 않습니다.
+
+---
+
+## 7. Firebase 설정 (처음 한 번)
+
+> 모두 무료(Spark) 요금제 안에서 진행합니다. 도중에 **결제 정보 입력이나 요금제 업그레이드(Blaze)를 요구하면 진행하지 마세요.** Cloud Storage, Functions, Hosting은 사용하지 않습니다.
+
+### 7-1. 프로젝트 만들기
+1. https://console.firebase.google.com 에 Google 계정으로 로그인합니다.
+2. **프로젝트 만들기**(Create a project) → 프로젝트 이름 입력(예: `archlab-site`) → 계속.
+3. Google 애널리틱스는 **사용 안 함**으로 두어도 됩니다 → **프로젝트 만들기**.
+
+### 7-2. 웹 앱 등록 (설정값 받기)
+1. 프로젝트 첫 화면의 **`</>`(웹)** 아이콘을 누릅니다.
+2. 앱 닉네임 입력(예: `website`). "Firebase 호스팅도 설정" 은 **체크하지 않습니다** → **앱 등록**.
+3. 화면에 나오는 `firebaseConfig` 값을 메모장에 복사해 둡니다. 다음 6개를 씁니다.
+
+| firebaseConfig 항목 | 환경변수 이름 |
+|---|---|
+| apiKey | `VITE_FIREBASE_API_KEY` |
+| authDomain | `VITE_FIREBASE_AUTH_DOMAIN` |
+| projectId | `VITE_FIREBASE_PROJECT_ID` |
+| storageBucket | `VITE_FIREBASE_STORAGE_BUCKET` |
+| messagingSenderId | `VITE_FIREBASE_MESSAGING_SENDER_ID` |
+| appId | `VITE_FIREBASE_APP_ID` |
+
+나중에 다시 보려면: 왼쪽 위 톱니바퀴 → **프로젝트 설정** → 아래쪽 "내 앱".
+
+> 이 값들은 비밀번호가 아니라 "어느 Firebase 프로젝트인지"를 알려 주는 주소 같은 것입니다. 데이터 보호는 아래 보안 규칙(firestore.rules)이 담당합니다.
+
+### 7-3. Firestore 데이터베이스 만들기
+1. 왼쪽 메뉴 **빌드(Build) → Firestore Database** → **데이터베이스 만들기**.
+2. 위치: **`asia-northeast3 (Seoul)`** 권장. (나중에 바꿀 수 없습니다)
+3. 보안 규칙: **프로덕션 모드(production mode)**로 시작 → 만들기.
+4. 이어서 **7-5**의 보안 규칙을 꼭 게시하세요.
+
+### 7-4. Google 로그인 켜기
+1. 왼쪽 메뉴 **빌드 → Authentication** → **시작하기**.
+2. **로그인 방법(Sign-in method)** 탭 → **Google** → **사용 설정** 켜기.
+3. 프로젝트 지원 이메일을 고르고 → **저장**.
+4. 같은 Authentication 화면의 **설정(Settings) → 승인된 도메인(Authorized domains)** → **도메인 추가** → Netlify 주소를 `https://` 없이 입력합니다. 예: `archlab-xxx.netlify.app`
+   - `localhost`는 기본으로 들어 있습니다.
+   - 나중에 개인 도메인을 연결하면 그 도메인도 추가하세요. 추가하지 않으면 "승인된 도메인이 아닙니다" 오류가 납니다.
+
+### 7-5. 보안 규칙(firestore.rules) 게시
+1. 이 프로젝트의 `firestore.rules` 파일을 메모장 등으로 열어 **전체 내용을 복사**합니다.
+2. Firebase 콘솔 **Firestore Database → 규칙(Rules)** 탭을 엽니다.
+3. 기존 내용을 모두 지우고 붙여 넣은 뒤 **게시(Publish)**를 누릅니다.
+4. `firestore.rules`를 고친 경우에도 같은 방법으로 다시 게시해야 반영됩니다. (GitHub에 올리는 것만으로는 반영되지 않습니다)
+
+### 7-6. Netlify에 환경변수 입력
+1. Netlify 사이트 화면 → **Project configuration(또는 Site configuration) → Environment variables** → **Add a variable → Add a single variable**.
+2. 7-2 표의 **환경변수 이름 6개**를 하나씩 추가하고 값을 붙여 넣습니다. (값 앞뒤에 따옴표나 공백이 없게)
+3. 환경변수는 빌드할 때 들어가므로, **Deploys → Trigger deploy → Deploy site**로 한 번 다시 배포합니다.
+4. 배포된 사이트에서 "Google 로그인" 버튼이 활성화되면 성공입니다.
+
+---
+
+## 8. 내 계정을 첫 관리자(admin)로 만들기
+
+처음에는 관리자가 없으므로, 교수님 계정만 콘솔에서 직접 한 번 바꿔 줍니다.
+
+1. 배포된 사이트(또는 `npm run dev`)에서 **본인 Google 계정으로 로그인**합니다. "승인 대기 중" 화면이 나오면 정상입니다.
+2. Firebase 콘솔 **Firestore Database → 데이터(Data)** 탭 → `users` 컬렉션을 엽니다.
+3. 본인 이메일이 적힌 문서를 누르고 `role` 필드의 값 `pending`을 **`admin`**으로 고친 뒤 업데이트합니다.
+4. 사이트로 돌아와 **"승인 여부 다시 확인"** 버튼을 누르거나 새로고침하면, 헤더에 **관리** 메뉴가 생깁니다.
+
+이후로는 콘솔에 들어갈 필요가 없습니다.
+
+## 9. 대학원생 승인과 권한
+
+1. 학생이 사이트에서 Google로 로그인하면 자동으로 **승인 대기(pending)**로 등록됩니다.
+2. 교수님이 헤더의 **관리** 메뉴(`/admin`)에서 학생 옆 **승인** 버튼을 누르면 **구성원(member)**이 됩니다.
+3. 학생은 "승인 여부 다시 확인" 버튼을 누르거나 새로고침하면 토론 게시판을 쓸 수 있습니다.
+
+| | 연구·수업·성과·구성원 | 토론 읽기 | 글·댓글 쓰기 | 수정·삭제 | 사용자 승인 |
+|---|---|---|---|---|---|
+| 비로그인 | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 승인 대기 (pending) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 구성원 (member) | ✅ | ✅ | ✅ | 본인 것만 | ❌ |
+| 교수 (admin) | ✅ | ✅ | ✅ | 모두 | ✅ |
+
+- 이 권한은 화면뿐 아니라 `firestore.rules`가 서버에서 강제합니다. 주소를 직접 입력하거나 프로그램으로 접근해도 막힙니다.
+- 졸업 등으로 권한을 거두려면 관리 화면에서 역할을 **승인 대기**로 바꾸세요.
+- 본인 역할은 실수 방지를 위해 관리 화면에서 바꿀 수 없습니다.
+
+### 무료 한도 안에서 쓰기
+Spark 요금제는 하루 읽기 5만 회, 쓰기 2만 회까지 무료입니다. 연구실 규모에서는 넉넉하며, 사이트도 아끼도록 만들어져 있습니다.
+- 토론 목록은 20개씩 불러오고 "더 보기"로 이어서 읽습니다.
+- 실시간 갱신은 글 상세 화면의 댓글에만 씁니다.
+- 한도를 넘으면 요금이 나가는 것이 아니라 그날 하루 토론 기능이 멈춥니다(다음 날 자동 복구). 사용량은 콘솔 **Firestore Database → 사용량(Usage)**에서 볼 수 있습니다.
+
+### 자주 생기는 문제
+| 증상 | 해결 |
+|---|---|
+| 로그인 버튼이 회색이고 "Firebase 설정 필요" | 환경변수(.env 또는 Netlify)가 비어 있음 → 7-2, 7-6 확인 후 다시 배포 |
+| "승인된 도메인에 등록되어 있지 않습니다" | 7-4의 4번: 승인된 도메인에 사이트 주소 추가 |
+| 로그인 창이 안 뜸 | 브라우저 주소창의 팝업 차단 아이콘 → 이 사이트 팝업 허용 |
+| 로그인 후 "사용자 정보를 불러오지 못했습니다" | 7-5 보안 규칙이 게시되지 않았거나 Firestore가 만들어지지 않음 |
+| 승인했는데 학생 화면이 그대로 | 학생이 "승인 여부 다시 확인" 또는 새로고침 |

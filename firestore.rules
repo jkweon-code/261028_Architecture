@@ -1,0 +1,125 @@
+// ─────────────────────────────────────────────────────────────
+// Cloud Firestore 보안 규칙
+// 화면에서 버튼을 숨기는 것만으로는 막을 수 없으므로, 실제 권한은 여기서 강제합니다.
+// 수정 후에는 Firebase 콘솔 → Firestore Database → 규칙(Rules) 탭에 붙여 넣고 "게시"하세요.
+//
+//  - 비로그인 / pending : 토론 데이터 읽기·쓰기 불가
+//  - member            : 토론 읽기, 글·댓글 작성, 본인 것만 수정·삭제
+//  - admin             : 모든 글·댓글 관리, 사용자 역할 변경
+// ─────────────────────────────────────────────────────────────
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 공통 함수 ─────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    // 내 users 문서의 role 이 roles 중 하나인지
+    function hasRole(roles) {
+      return signedIn() && exists(myUserPath()) && get(myUserPath()).data.role in roles;
+    }
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+    function isMember() {
+      return hasRole(['admin', 'member']);
+    }
+    function myName() {
+      return get(myUserPath()).data.name;
+    }
+
+    // ── 사용자: users/{uid} ───────────────────────────────────
+    match /users/{uid} {
+      // 본인 문서는 본인이, 전체 목록은 관리자만 읽기
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // 첫 로그인 때 본인 문서를 role='pending' 으로만 만들 수 있음
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'photoURL', 'role', 'createdAt'])
+        && request.resource.data.role == 'pending'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 50
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.photoURL is string
+        && request.resource.data.createdAt == request.time;
+
+      // role 변경은 관리자만, 그리고 role 필드만
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+        && request.resource.data.role in ['admin', 'member', 'pending'];
+
+      allow delete: if false;
+    }
+
+    // ── 토론 글: posts/{postId} ───────────────────────────────
+    match /posts/{postId} {
+      // 저장되는 글의 모양 검사
+      function validPost() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['title', 'body', 'category', 'relatedResearchId', 'authorUid', 'authorName', 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['title', 'body', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt'])
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 100
+          && d.body is string && d.body.size() > 0 && d.body.size() <= 10000
+          && d.category is string && d.category.size() > 0 && d.category.size() <= 20
+          && (!('relatedResearchId' in d) || (d.relatedResearchId is string && d.relatedResearchId.size() <= 100));
+      }
+      function isPostOwner() {
+        return resource.data.authorUid == request.auth.uid;
+      }
+
+      allow read: if isMember();
+
+      // 글쓴이(authorUid)는 반드시 본인, 이름은 users 문서의 이름과 같아야 함
+      allow create: if isMember()
+        && validPost()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName == myName()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // 본인 글만 (관리자는 모든 글) 수정. 글쓴이와 작성 시각은 바꿀 수 없음
+      allow update: if isMember()
+        && (isPostOwner() || isAdmin())
+        && validPost()
+        && request.resource.data.authorUid == resource.data.authorUid
+        && request.resource.data.authorName == resource.data.authorName
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if isMember() && (isPostOwner() || isAdmin());
+
+      // ── 댓글: posts/{postId}/comments/{commentId} ──────────
+      match /comments/{commentId} {
+        allow read: if isMember();
+
+        allow create: if isMember()
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && request.resource.data.keys().hasOnly(['body', 'authorUid', 'authorName', 'createdAt'])
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0
+          && request.resource.data.body.size() <= 2000
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorName == myName()
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if false;
+
+        // 본인 댓글, 관리자, 또는 글쓴이(본인 글을 삭제하면서 달린 댓글을 함께 지울 때)
+        allow delete: if isMember() && (
+          resource.data.authorUid == request.auth.uid
+          || isAdmin()
+          || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
+        );
+      }
+    }
+
+    // 위에 적지 않은 모든 경로는 기본적으로 거부됩니다.
+  }
+}

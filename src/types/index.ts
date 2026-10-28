@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // 사이트에서 쓰는 데이터의 모양(타입) 정의
-// 2단계(Firestore)에서도 같은 타입을 그대로 사용합니다.
+// Firestore 에서 읽은 데이터도 이 모양으로 바꿔서 화면에 넘깁니다.
 // ─────────────────────────────────────────────────────────────
 
 import type { PostCategory } from '../config/site';
@@ -75,7 +75,7 @@ export interface Member {
   bio?: string;
 }
 
-/** 로그인 사용자 (2단계에서 Firestore users/{uid} 문서와 대응) */
+/** 로그인 사용자 (Firestore users/{uid} 문서와 대응) */
 export type UserRole = 'admin' | 'member' | 'pending';
 
 export interface User {

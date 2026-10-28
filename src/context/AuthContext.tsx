@@ -1,76 +1,96 @@
 // ─────────────────────────────────────────────────────────────
 // 로그인 상태와 사용자 역할을 사이트 전체에 알려 주는 곳
-// - 역할: admin(교수), member(승인된 대학원생), pending(승인 대기)
-// - 1단계: 실제 로그인은 없고, 개발 모드에서만 가짜 사용자로 바꿔 볼 수 있습니다.
-// TODO(Phase2): Firebase Auth(signInWithPopup) + Firestore users/{uid} 로 교체하고
-//               개발용 가짜 사용자(devUsers, switchDevUser)는 제거합니다.
+// - Google 로그인(Firebase Authentication)
+// - 역할은 Firestore users/{uid} 문서의 role: admin(교수), member(승인된 대학원생), pending(승인 대기)
+// - 여기서의 권한 확인은 화면 표시용입니다. 실제 보호는 firestore.rules 가 담당합니다.
 // ─────────────────────────────────────────────────────────────
 
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
+import { firebaseReady, requireAuth } from '../lib/firebase';
+import { getOrCreateUser } from '../services/userService';
 import type { User } from '../types';
 
 interface AuthContextValue {
   user: User | null; // null 이면 로그인하지 않은 상태
   loading: boolean; // 로그인 상태를 확인하는 중인지
-  /** 실제 로그인이 가능한지 (1단계는 false → 로그인 버튼 비활성화) */
+  /** 로그인 기능을 쓸 수 있는지 (Firebase 설정값이 없으면 false) */
   signInAvailable: boolean;
+  /** 로그인·사용자 정보 오류 안내 문구 */
+  error: string;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** 역할을 다시 읽어 오기 (승인 대기 중인 사람이 승인 여부를 확인할 때) */
+  refreshUser: () => Promise<void>;
   /** 토론 게시판을 읽고 쓸 수 있는지 (admin, member) */
   canUseDiscussion: boolean;
   /** 이 글쓴이의 글/댓글을 고치거나 지울 수 있는지 (본인 또는 admin) */
   canManage: (authorUid: string) => boolean;
-
-  // ── 개발 모드 전용 ──
-  devUsers: User[];
-  switchDevUser: (uid: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// 개발 모드에서 역할별 화면을 확인하기 위한 가짜 사용자들
-// TODO(Phase2): 제거
-const DEV_USERS: User[] = [
-  { uid: 'dev-admin', name: '홍길동', email: 'admin@example.com', role: 'admin', createdAt: '2026-01-01T00:00:00.000Z' },
-  { uid: 'dev-member', name: '김연구', email: 'member@example.com', role: 'member', createdAt: '2026-01-01T00:00:00.000Z' },
-  { uid: 'dev-member-2', name: '이설계', email: 'member2@example.com', role: 'member', createdAt: '2026-01-01T00:00:00.000Z' },
-  { uid: 'dev-pending', name: '신입생', email: 'pending@example.com', role: 'pending', createdAt: '2026-01-01T00:00:00.000Z' },
-];
-const DEV_USER_KEY = 'archlab.devUser';
-
-function initialDevUser(): User | null {
-  // 배포된 사이트(운영 모드)에서는 항상 비로그인 상태
-  if (!import.meta.env.DEV) return null;
-  const saved = localStorage.getItem(DEV_USER_KEY);
-  if (saved === 'none') return null;
-  // 처음에는 교수(admin)로 시작
-  return DEV_USERS.find((u) => u.uid === saved) ?? DEV_USERS[0];
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(initialDevUser);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(firebaseReady);
+  const [error, setError] = useState('');
 
-  const switchDevUser = (uid: string | null) => {
-    if (!import.meta.env.DEV) return;
-    localStorage.setItem(DEV_USER_KEY, uid ?? 'none');
-    setUser(DEV_USERS.find((u) => u.uid === uid) ?? null);
+  const loadUser = useCallback(async () => {
+    const fbUser = firebaseReady ? requireAuth().currentUser : null;
+    if (!fbUser) {
+      setUser(null);
+      return;
+    }
+    try {
+      setUser(await getOrCreateUser(fbUser));
+      setError('');
+    } catch (e) {
+      console.error('[사용자 정보 오류]', e);
+      setUser(null);
+      setError('사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  }, []);
+
+  // 로그인 상태 변화 감지 (새로고침해도 로그인 유지)
+  useEffect(() => {
+    if (!firebaseReady) return;
+    return onAuthStateChanged(requireAuth(), async () => {
+      setLoading(true);
+      await loadUser();
+      setLoading(false);
+    });
+  }, [loadUser]);
+
+  const signIn = async () => {
+    setError('');
+    try {
+      await signInWithPopup(requireAuth(), new GoogleAuthProvider());
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      if (code === 'auth/popup-blocked') setError('팝업이 차단되었습니다. 브라우저 주소창에서 팝업을 허용해 주세요.');
+      else if (code === 'auth/unauthorized-domain') setError('이 주소는 Firebase 승인된 도메인에 등록되어 있지 않습니다.');
+      else setError('로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      console.error('[로그인 오류]', e);
+    }
+  };
+
+  const signOut = async () => {
+    await fbSignOut(requireAuth());
   };
 
   const canUseDiscussion = user?.role === 'admin' || user?.role === 'member';
 
   const value: AuthContextValue = {
     user,
-    loading: false,
-    signInAvailable: false, // TODO(Phase2): true
-    // TODO(Phase2): signInWithPopup(auth, new GoogleAuthProvider())
-    signIn: async () => {},
-    // TODO(Phase2): firebase signOut(auth)
-    signOut: async () => switchDevUser(null),
+    loading,
+    signInAvailable: firebaseReady,
+    error,
+    signIn,
+    signOut,
+    refreshUser: loadUser,
     canUseDiscussion,
-    canManage: (authorUid) =>
-      canUseDiscussion && (user?.role === 'admin' || user?.uid === authorUid),
-    devUsers: import.meta.env.DEV ? DEV_USERS : [],
-    switchDevUser,
+    canManage: (authorUid) => canUseDiscussion && (user?.role === 'admin' || user?.uid === authorUid),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

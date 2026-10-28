@@ -7,7 +7,7 @@ import { discussionService, type PostCursor } from '../services/discussionServic
 import { formatDate } from '../lib/format';
 import type { Post } from '../types';
 
-// 한 번에 불러오는 글 수 (2단계에서 Firestore 무료 읽기 한도를 아끼기 위해 20개씩)
+// 한 번에 불러오는 글 수 (Firestore 무료 읽기 한도를 아끼기 위해 20개씩)
 const PAGE_SIZE = 20;
 
 export default function DiscussionListPage() {
